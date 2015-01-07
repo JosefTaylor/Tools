@@ -1,3 +1,6 @@
+#This tool converts points of the compass to azimuth in degrees. It's useful for interpreting weather data.
+# Josef Taylor, 2014-09-19
+
 dictcomPoint2Dirs = {
     'N'   : 348.75,
     'NNE' : 11.25,
