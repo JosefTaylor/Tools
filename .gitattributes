@@ -20,3 +20,8 @@
 *.PDF	 diff=astextplain
 *.rtf	 diff=astextplain
 *.RTF	 diff=astextplain
+
+#Treat Grasshopper files as binary
+*.gh binary
+*.ghx binary
+*.ghcluster binary
