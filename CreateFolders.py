@@ -31,4 +31,3 @@ index = input('Choose one {}'.format(folderNames))
 
 #print(folderNames[int(index)])
 MakeSubFolders(path, [folderNames[int(index)]])
-
