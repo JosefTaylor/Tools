@@ -1,0 +1,169 @@
+# This script reads an Excel Spreadsheet called Data.xlsx  which contains points and line connectivity, 
+# then imports that data into Design Modeler through the Ansys Workbench software.
+# It is run from within workbench.
+# the working directory is defined internally: verify before using.
+# There must be a "geometry" container in the project schematic
+# Data.xlsx should have two sheets, "Points" and "Lines"
+# "Points" should be in the format "ID X Y Z" with those strings as the column headers
+# "Lines" should be in the format "ID N1 N2" with those strings as the column headers
+# no empty lines or funny stuff. The input routine is not robust.
+# The script creates a text file called "XYZ.txt" from the Data. 
+# Beware that there is not a file "XYZ.txt" in the working directory; this file will be overwritten.
+
+# Open Excel Connectivity File
+# to-do: Set workingDir automatically to directory where script is run from, or prompt for path.
+
+import clr
+clr.AddReference("Microsoft.Office.Interop.Excel")
+
+import Microsoft.Office.Interop.Excel as Excel
+ex = Excel.ApplicationClass()
+ex.Visible = True
+workingDir="C:/Users/jtaylor/Documents/Development/ANSYS/CreateLines/"
+
+workbook = ex.Workbooks.Open(workingDir + "Data.xlsx")
+
+worksheets = workbook.Worksheets
+
+# Get Lines from excel workbook
+# To-do: rewrite this section to make better use of Python and xlread method
+
+worksheet = worksheets.Item("Lines")
+
+xlRange = worksheet.Range("Lines")
+
+from System import Array
+oArrayLines = Array.CreateInstance(object, xlRange.Rows.Count-1,xlRange.Columns.Count)
+
+rows=[]
+rows = range(2,xlRange.Rows.Count+1)
+columns=[]
+columns = range(1,xlRange.Columns.Count+1)
+i = 2
+j = 1
+
+
+iRowIndex = int
+iRowIndex = 0
+iColIndex = int
+iColIndex = 0
+
+iCellRowIndex = int
+iCellColumnIndex = int
+
+for iRow in rows:
+	iCellRowIndex = iRow
+	iColIndex = 0
+	for iCol in columns:
+		iCellColumnIndex = iCol
+		oArrayLines[iRowIndex,iColIndex]= xlRange.Cells(iCellRowIndex,iCellColumnIndex).Value2
+		iColIndex += 1
+	iRowIndex += 1
+
+lineID = []
+lineN1 = []
+lineN2 = []
+
+iLineDimension0Index = []
+iLineDimension0Index = range(0,oArrayLines.GetUpperBound(0)+1)
+iLineDimension1Index = []
+iLineDimension1Index = range(0,oArrayLines.GetUpperBound(1)+1)
+
+for iID in iLineDimension0Index:
+	
+	lineID.append(oArrayLines[iID,0])
+	lineN1.append(oArrayLines[iID,1])
+	lineN2.append(oArrayLines[iID,2])
+	
+
+
+#Get Points 
+
+worksheet = worksheets.Item("Points")
+from Microsoft.Office.Interop.Excel import Range
+xlRange = worksheet.Range("Points")
+from System import Array
+oArrayPoints = Array.CreateInstance(object, xlRange.Rows.Count-1,xlRange.Columns.Count)
+rows = range(2,xlRange.Rows.Count+1)
+columns = range(1,xlRange.Columns.Count+1)
+iRowIndex = 0
+iColIndex = 0
+
+for iRow in rows:
+	iCellRowIndex = iRow
+	iColIndex = 0
+	for iCol in columns:
+		iCellColumnIndex = iCol
+		oArrayPoints[iRowIndex,iColIndex]= xlRange.Cells(iCellRowIndex,iCellColumnIndex).Value2
+		iColIndex += 1
+	iRowIndex += 1
+
+pointsDicID = dict
+pointsDicID = {}
+pointID = []
+pointX = []
+pointY  = []
+pointZ  = []
+
+iPointDimension0Index = []
+iPointDimension0Index = range(0,oArrayPoints.GetUpperBound(0)+1)
+iPointDimension1Index = []
+iPointDimension1Index = range(0,oArrayPoints.GetUpperBound(1)+1)
+
+iPointTableIndex = int
+iPointTableIndex = 1
+
+for iID in iPointDimension0Index :
+	
+	pointID.append(oArrayPoints[iID,0])
+	pointX.append(oArrayPoints[iID,1])
+	pointY.append(oArrayPoints[iID,2])
+	pointZ.append(oArrayPoints[iID,3])
+	pointsDicID[oArrayPoints[iID,0]] = iPointTableIndex
+	iPointTableIndex +=1
+
+# Close Excel and destroy application object
+ex.Quit()
+ex = None
+
+# Write points data to text file
+
+gID = (1,) # Group ID necessary for Design Modeler input file. Future versions may make use of this to
+#              differentiate between columns and beams, etc.
+
+ptList = [gID + pt for pt in zip(pointID, pointX, pointY, pointZ) if None not in pt] # Reorganizes lists of IDs, Xs, Ys, Zs, as list of points
+#                                                                                       and ignores empty rows
+
+pointsPath = workingDir + 'XYZ.txt'
+f = open(pointsPath, 'w')
+
+for line in ptList:
+   f.write(" ".join(map(str, line))+'\n') # writes list of points to file with space delimiters
+f.close()
+
+# Get Points
+
+system1 = GetSystem(Name="Geom")
+geometry = system1.GetContainer(ComponentName="Geometry")
+
+# add points via Design Modeler with jscript commands
+# DesignModeler forgets variables between "SendCommand" statements, so build entire string of commands before sending
+
+comString = """
+var pts = agb.FPoint(agc.FPointConstruction,agc.FPointCoordinateFile);
+pts.Name= "LinePoints";
+pts.CoordinateFile = \"""" + pointsPath.replace("/", '\\\\') + """\";
+agb.Regen();
+var lines = agb.LinePt();
+lines.Name= "Lines";
+"""
+
+# Loop over line connectivity data and add lines connectivity to command statement
+
+for line in lineDict:
+	comString = comString + "\nlines.AddSegment(pts.GetPoint(1," + str(line['N1']) + "), pts.GetPoint(1," + str(line['N2']) + "));"
+	
+comString = comString + "\nagb.Regen();"
+	
+geometry.SendCommand(Command = comString)
+	
